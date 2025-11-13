@@ -28,4 +28,4 @@ Toda la lógica de decisión, los timers, los mensajes y las rutas de escalació
 
 Este diagrama es la "fuente de verdad" para el desarrollo del bot.
 
-> **[Haz clic aquí para ver el Diagrama de Flujo (FLUJO_BOT.md)](flujo_sentria.md)**
+> **[Haz clic aquí para ver el Diagrama de Flujo (flujo_sentria.md)](flujo_sentria.md)**
