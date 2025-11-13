@@ -57,7 +57,7 @@ graph TD
         C2 --> C3(Bot contacta a Reportador Original)
         C3 --> C4(Bot: 'Incidencia #123 marcada como resuelta. ¿Confirmas?')
         C4 --> C5{Reportador confirma?}
-        C5 -- ✅ Ya Quedo --> FIN(Incidencia Cerrada)
-        C5 -- ❌ No Quedo --> C6(Bot: 'Desacuerdo reportado')
+        C5 --  Ya Quedo --> FIN(Incidencia Cerrada)
+        C5 --  No Quedo --> C6(Bot: 'Desacuerdo reportado')
         C6 --> ESC
     end
