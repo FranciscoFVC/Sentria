@@ -1,63 +1,50 @@
 ```mermaid
 graph TD
-    subgraph 1. Inicio y Captura
-        A1(Reportador envia 'Incidencia') --> B1(Bot: 'Tipo de incidencia?')
-        B1 --> A2("Reportador elige: [Manto], [Calidad], etc.")
-        A2 --> B2(Bot: 'Sub-tipo de incidencia?')
-        B2 --> A3("Reportador elige: [Mecanico], [Electrico], [Otro]")
-        A3 --> B3{Eleccion es 'Otro'?}
-        B3 -- Si --> B4(Bot: 'Describe la falla:')
-        B4 --> A4(Reportador escribe free text)
-        B3 -- No --> B5(Bot crea Incidencia #123)
-        A4 --> B5
+    %% FASE 1: REPORTE SIMPLIFICADO (EL ACUSON)
+    subgraph 1. Reporte Express
+        A1(Reportador inicia bot) --> A2("Bot: Selecciona TIPO [Calidad], [Manto], [Seguridad]")
+        A2 --> A3("Reportador elige: [Linea 1], [Linea 2], etc.")
+        A3 --> A4(Bot pide FOTO Evidencia)
+        A4 --> A5(Reportador envia Foto)
+        A5 --> B1(Bot crea Incidencia #123 y busca responsable en turno)
     end
 
-    B5 --> B6(Bot Inicia Timer Global: 1 Hora)
-    B6 --> B7("Bot asigna a Mecanico 1 [Zona]")
-    B7 --> M1(Bot contacta a Mecanico 1)
-
-    subgraph 2. Asignacion Mecanico 1
-        M1 --> M1_DEC{"Mecanico 1 [Timer 5 min]"}
-        M1_DEC -- Acepta  --> PROC(En Proceso)
-        M1_DEC -- Rechaza  --> M1_FAIL
-        M1_DEC -- No contesta (Timeout 5 min) --> M1_FAIL(Falla Asignacion 1)
+    %% FASE 2: NOTIFICACION GRUPAL Y ASIGNACION
+    subgraph 2. Notificacion en Grupo
+        B1 --> G1("Bot envia a GRUPO DE WHATSAPP: 'Atencion @JuanPerez en L1' + FOTO")
+        G1 --> G2{Alguien presiona 'Gestionar'?}
+        G2 -- Usuario Incorrecto --> G3(Bot: 'Tu no eres el responsable')
+        G3 --> G2
+        G2 -- Usuario Correcto --> G4("Bot actualiza grupo: 'Atendiendo'")
+        G4 --> DM(Bot abre Chat Privado con Mecanico)
     end
 
-    M1_FAIL --> B8(Bot notifica a Jefe: 'Mec 1 no acepto')
-    B8 --> B9("Bot busca Mecanico 2 [Otra zona]")
-    B9 --> M2(Bot contacta a Mecanico 2)
+    %% FASE 3: MOTOR DE ESCALACION (HIERARCHY LOOP)
+    G1 -.-> TIMER{Timer Vencido?}
+    TIMER -- Si --> ESC1(Bot busca Siguiente Nivel Jerarquico)
+    ESC1 --> ESC2("Bot envia a GRUPO: 'Atencion @JefeInmediato (Escalado)'")
+    ESC2 --> TIMER
+    ESC2 --> G2
 
-    subgraph 3. Asignacion Mecanico 2
-        M2 --> M2_DEC{"Mecanico 2 [Timer 5 min]"}
-        M2_DEC -- Acepta  --> PROC
-        M2_DEC -- Rechaza  --> M2_FAIL
-        M2_DEC -- No contesta (Timeout 5 min) --> M2_FAIL(Falla Asignacion 2)
+    %% FASE 4: RESOLUCION Y CATEGORIZACION (EL EXPERTO)
+    subgraph 3. Ejecucion y Clasificacion
+        DM --> W1(En Proceso de Reparacion)
+        W1 --> W2{Mecanico termina?}
+        W2 -- Si --> W3("Bot pide: FOTO de Solucion")
+        W3 --> W4("Bot pide: CLASIFICACION FINAL (Menu Top 5 + Otro)")
+        W4 --> W5(Mecanico selecciona Categoria Tecnica)
     end
 
-    subgraph 4. En Proceso
-        PROC(Incidencia Aceptada) --> PROC_OPT("Bot: Opciones [Foto Antes], [Comentar Antes], [Ver Detalles], [Escalar Ahora], [Falla Arreglada]")
-        PROC_OPT --> PROC_DEC{Mecanico gestiona}
-        PROC_DEC -- Trabaja y Resuelve --> PROC_FIX("Mecanico presiona [Falla Arreglada]")
-        PROC_DEC -- Necesita Ayuda --> PROC_ESC("Mecanico presiona [Escalar Ahora]")
-    end
-
-    B6 -. Expira 1 Hora .-> ESC(Escalacion Automatica por Tiempo)
-
-    M2_FAIL --> ESC
-    PROC_ESC --> ESC
-
-    subgraph 5. Escalacion a Supervisor
-        ESC(Incidencia escalada a Supervisor) --> SUP_OPT("Bot: Opciones Supervisor [Reasignar Manual], [Ver Detalles]")
-        SUP_OPT --> SUP_FIN(Supervisor gestiona manualmente)
-    end
-
-    subgraph 6. Cierre y Confirmacion
-        PROC_FIX --> C1("Bot pide al Mecanico: [Foto Despues], [Comentar Despues], [Omitir]")
-        C1 --> C2(Mecanico envia detalles o omite)
-        C2 --> C3(Bot contacta a Reportador Original)
-        C3 --> C4(Bot: 'Incidencia #123 marcada como resuelta. ¿Confirmas?')
-        C4 --> C5{Reportador confirma?}
-        C5 --  Ya Quedo --> FIN(Incidencia Cerrada)
-        C5 --  No Quedo --> C6(Bot: 'Desacuerdo reportado')
-        C6 --> ESC
+    %% FASE 5: EL BUCLE DE LA NIÑERA (MONITOREO)
+    subgraph 4. Monitoreo y Cierre
+        W5 --> MON1(Bot espera Tiempo X)
+        MON1 --> MON2("Bot pregunta a Mecanico: '¿Sigue funcionando bien?'")
+        MON2 --> MON3{Respuesta Mecanico}
+        
+        MON3 --  Fallo de nuevo --> REOPEN(Reabrir Incidencia: Nueva Atencion)
+        REOPEN --> ESC1 %% Se regresa a escalacion/grupo
+        
+        MON3 --  Todo bien --> MON4{¿Contador < N veces?}
+        MON4 -- Faltan revisiones --> MON1 %% Vuelve a esperar
+        MON4 -- Revisiones Completas --> FIN(Cierre Definitivo y Archivado)
     end
