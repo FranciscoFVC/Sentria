@@ -14,12 +14,12 @@ graph TD
         G1 --> G2{Alguien presiona Gestionar?}
         G2 -- Usuario Incorrecto --> G3(Bot: Tu no eres el responsable)
         G3 --> G2
-        G2 -- Usuario Correcto --> G4("Bot actualiza grupo: ✅ Atendiendo")
+        G2 -- Usuario Correcto --> G4("Bot actualiza grupo: Atendiendo")
         G4 --> DM(Bot abre Chat Privado)
 
         G1 -.-> TIMER{Pasaron 5 min sin respuesta?}
         TIMER -- Si --> ESC1(Bot busca Jefe Inmediato)
-        ESC1 --> ESC2("Bot envia a GRUPO: 🚨 ESCALADO a @Jefe + FOTO")
+        ESC1 --> ESC2("Bot envia a GRUPO: ESCALADO a @Jefe + FOTO")
         ESC2 --> TIMER
         ESC2 --> G2
     end
