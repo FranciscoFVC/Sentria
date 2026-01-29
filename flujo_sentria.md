@@ -1,68 +1,113 @@
 ```mermaid
 graph TD
-    subgraph Uno ["1. Reporte express"]
-        START((Inicio)) --> A1("Reportador elige: Tipo [Calidad, Manto, Seguridad]")
-        A1 --> A2("Reportador elige: Linea [L1, L2, L3]")
-        A2 --> A3(Bot pide foto evidencia)
-        A3 --> A4(Reportador envia foto)
-        A4 --> B1(Bot crea ticket #123, estatus: Abierto)
-        B1 --> TIMER_START((Inicia timer global 1 hr))
+    subgraph 1. Reporte inicial
+        %% FLUJO PRINCIPAL
+        A1("Usuario: Hola o Incidencia") --> T1["Plantilla 1: Tipo - Quick Reply"]
+        T1 --> DEC_TIPO{"Usuario elige opción"}
+        
+        DEC_TIPO -- "Manto, calidad, etc." --> SET_TYPE("Guardar tipo seleccionado")
+        SET_TYPE --> T3["Plantilla 3: Ubicación - Quick Reply"]
+        T3 --> A3("Usuario elige zona")
+        A3 --> B_INIT("Bot inicia variables: Nivel_escalación 1, Intento_monitoreo 0")
+
+        %% RAMA "OTRO"
+        DEC_TIPO -- "Otro" --> T2["Plantilla 2: Describe el tipo - Texto"]
+        T2 --> A2_OTHER("Usuario escribe descripción")
+        A2_OTHER --> SET_TYPE
+
+        %% TIMEOUT WIZARD (DERECHA)
+        T1 -.-> TIMEOUT_WIZARD{"Timeout creación 5min"}
+        TIMEOUT_WIZARD -.->|"Usuario abandonó"| CANCEL_SESSION("Borrar sesión temporal")
+
+        %% AJUSTE VISUAL
+        DEC_TIPO ~~~ TIMEOUT_WIZARD
     end
 
-    subgraph Dos ["2. Notificacion y escalacion"]
-        B1 --> G1("Bot envia a grupo: Atencion @Responsable + foto")
-        
-        G1 --> G2{Alguien presiona gestionar?}
-        G2 -- Usuario incorrecto --> G3(Bot: Tu no eres el responsable)
-        G3 --> G2
-        G2 -- Usuario correcto --> G4("Bot actualiza mensaje grupo: Atendiendo")
-        G4 --> DM(Bot abre chat privado)
+    B_INIT --> CHECK_LEVEL
 
-        G1 -.-> TIMER_5{Pasaron 5 min sin respuesta?}
-        TIMER_5 -- Si --> ESC1(Bot busca jefe inmediato en BD)
-        ESC1 --> ESC2("Bot envia a grupo: Escalado a @Jefe + foto")
-        ESC2 --> TIMER_5
-        ESC2 --> G2
+    subgraph 2. Lógica de asignación y escalamiento
+        CHECK_LEVEL{{"Es Nivel 1?"}}
+        
+        CHECK_LEVEL -- "Sí - Primer intento" --> SEND_P5["Plantilla 5: Asignación inicial - Mecánico"]
+        CHECK_LEVEL -- "No - Nivel superior" --> SEND_P7["Plantilla 7: Aviso de escalamiento - Jefe"]
+        
+        SEND_P5 --> WAIT_RESP{"Esperar tiempo configurable"}
+        SEND_P7 --> WAIT_RESP
+        
+        WAIT_RESP -- "Click en link" --> M_DM("Bot DM a responsable")
+        M_DM --> T_ACCEPT{"Plantilla NUEVA: Aceptar o rechazar"}
+        
+        T_ACCEPT -- "Acepta" --> START_WORK("Iniciar timer de solución configurable")
+
+        %% RETORNO AL BUCLE
+        WAIT_RESP -- "Tiempo agotado o rechaza" --> INC_LEVEL("Nivel = Nivel + 1")
+        T_ACCEPT -- "Rechaza" --> INC_LEVEL
+        INC_LEVEL --> CHECK_LEVEL
+
+        %% AJUSTE VISUAL
+        M_DM ~~~ INC_LEVEL
     end
 
-    subgraph Tres ["3. Ejecucion y clasificacion"]
-        DM --> W1(Mecanico trabaja en falla)
+    subgraph 3. Ejecución
+        START_WORK --> EXECUTION("Fase de ejecución activa")
+        EXECUTION --> T8["Plantilla 8: Menú técnico - Lista"]
+        T8 --> DEC_TEC{"Decisión técnico"}
         
-        TIMER_START -.-> TIMER_60{Paso 1 hora sin cierre?}
-        TIMER_60 -- Si --> ALARM("Bot envia a grupo: Alerta critica - Ticket vencido")
-        ALARM --> W1
+        DEC_TEC -- "Subir evidencia" --> T8
+        DEC_TEC -- "Falla solucionada" --> T9["Plantilla 9: Foto solución"]
 
-        W1 --> W2{Mecanico termina?}
-        W2 -- Si --> W3("Bot pide: Foto de solucion")
-        W3 --> W4("Bot pide: Clasificacion final - Menu top 5 + Otro")
-        W4 --> W5{Eleccion mecanico}
+        %% RAMAS LATERALES
+        DEC_TEC -- "Pedir ayuda" --> INC_LEVEL
         
-        W5 -- Menu top 5 --> W6(Guardar categoria en BD)
-        W5 -- Opcion otro --> W7("Mecanico escribe texto libre")
-        W7 --> W8(API IA procesa texto y guarda categoria)
+        %% AQUI ESTA EL CAMBIO VISUAL DEL TIMER
+        START_WORK -.-> CHECK_WORK_TIMER{{"Timer solución agotado?"}}
+        CHECK_WORK_TIMER -.->|"Sí - Se acabó el tiempo"| INC_LEVEL
+
+        %% AJUSTE VISUAL: Alinear los dos diamantes (Decisión y Timer)
+        DEC_TEC ~~~ CHECK_WORK_TIMER
     end
 
-    subgraph Cuatro ["4. Validacion reportador"]
-        W6 --> V1("Bot pregunta a reportador: Ya quedo?")
-        W8 --> V1
+    subgraph 4. Validación reportador
+        T9 --> T12["Plantilla 12: Confirmación usuario"]
+        T12 --> U_VAL{"Usuario confirma?"}
         
-        V1 --> V2{Reportador confirma?}
+        U_VAL -- "Sí - Ya quedó" --> PRE_MON("Incidencia resuelta tentativa")
+        U_VAL -- "No - Sigue fallando" --> REOPEN_LOGIC("Falla detectada por usuario")
         
-        V2 -- No --> REJECT(Bot marca estatus: Rechazado)
-        REJECT --> ESC1
-        
-        V2 -- Si --> V3(Bot marca estatus: Resuelto - Inicia niñera)
+        %% TIMEOUT LATERAL
+        T12 -.-> TIMEOUT_VAL{"Timeout 2 horas sin respuesta"}
+        TIMEOUT_VAL -.->|"AUTO-ACEPTAR: Asumir resuelto"| PRE_MON
+
+        %% AJUSTE VISUAL
+        U_VAL ~~~ TIMEOUT_VAL
     end
 
-    subgraph Cinco ["5. Loop de monitoreo"]
-        V3 --> MON1(Bot espera tiempo X)
-        MON1 --> MON2("Bot pregunta a mecanico: Sigue funcionando?")
-        MON2 --> MON3{Respuesta mecanico}
+    subgraph 5. Monitoreo y segunda instancia
+        PRE_MON --> CHECK_LOOP{{"Contador menor a N veces?"}}
         
-        MON3 -- Fallo --> REOPEN_ACT("BD: Estatus reabierto / Atenciones +1")
-        REOPEN_ACT --> ESC1
+        CHECK_LOOP -- "Sí - Sigue monitoreando" --> WAIT_MON("Esperar X horas configurable")
+        WAIT_MON --> T13["Plantilla 13: Sigue funcionando?"]
         
-        MON3 -- Todo bien --> MON4{Contador menor a N veces?}
-        MON4 -- Si --> MON1
-        MON4 -- No --> FIN((Estatus: Cerrado / Archivado))
+        T13 --> RESP_MON{"Respuesta usuario"}
+        RESP_MON -- "Sí, todo bien" --> INC_LOOP("Contador = Contador + 1")
+        INC_LOOP --> CHECK_LOOP
+        
+        %% TIMEOUT LATERAL
+        T13 -.-> TIMEOUT_MON{"Timeout 1 hora sin respuesta"}
+        TIMEOUT_MON -.->|"AUTO-CONTINUAR: Asumir OK"| INC_LOOP
+
+        %% LOGICA REAPERTURA
+        RESP_MON -- "No, falló de nuevo" --> REOPEN_LOGIC
+        
+        REOPEN_LOGIC --> CALC_BOSS("Calcular jefe inmediato Nivel + 1")
+        CALC_BOSS --> SEND_WARN["Enviar Plantilla 7 a jefe inmediato - Motivo: Reincidencia"]
+        
+        SEND_WARN --> RESET_L1("Resetear Nivel a 1 mecánico original")
+        RESET_L1 --> SET_FLAG("Marcar flag: Segunda instancia")
+        SET_FLAG --> CHECK_LEVEL
+        
+        CHECK_LOOP -- "No - Se cumplieron N veces" --> CLOSE("CIERRE DEFINITIVO")
+
+        %% AJUSTE VISUAL
+        RESP_MON ~~~ TIMEOUT_MON
     end
