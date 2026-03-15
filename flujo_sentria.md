@@ -8,22 +8,22 @@ graph TD
         DEC_TIPO -- "Manto, Calidad, Seg..." --> SET_TYPE("Guardar tipo")
         DEC_TIPO -- "Otro" --> SET_TYPE_OTRO("Guardar tipo 'Otro'")
         
-        SET_TYPE --> P3["P3: Ubicación - Menú Lista"]
-        SET_TYPE_OTRO --> P3
+        SET_TYPE --> P2["P2: Ubicación - Menú Lista"]
+        SET_TYPE_OTRO --> P2
         
-        P3 --> A3("Usuario elige zona")
+        P2 --> A2("Usuario elige zona")
         
-        %% --- NUEVO SUB-FLUJO EFICIENTE PARA "OTRO" ---
-        A3 --> CHECK_TIPO{{"¿Tipo es 'Otro'?"}}
+        %% --- SUB-FLUJO EFICIENTE PARA "OTRO" ---
+        A2 --> CHECK_TIPO{{"¿Tipo es 'Otro'?"}}
         
-        CHECK_TIPO -- "No" --> P4["P4: Solicitud Evidencia Inicial - Texto"]
-        CHECK_TIPO -- "Sí" --> P4_COMBO["P2/P4_COMBO: Solicitud Descripción + Foto"]
+        CHECK_TIPO -- "No" --> P3["P3: Solicitud Evidencia Inicial - Texto"]
+        CHECK_TIPO -- "Sí" --> P3_COMBO["P3_COMBO: Solicitud Descripción + Foto"]
         
-        P4 --> A4_PHOTO("Usuario envía foto o texto")
-        P4_COMBO --> A4_PHOTO_DESC("Usuario envía foto con descripción")
+        P3 --> A3_PHOTO("Usuario envía foto o texto")
+        P3_COMBO --> A3_PHOTO_DESC("Usuario envía foto con descripción")
         
-        A4_PHOTO --> B_INIT("Bot inicia variables")
-        A4_PHOTO_DESC --> B_INIT
+        A3_PHOTO --> B_INIT("Bot inicia variables")
+        A3_PHOTO_DESC --> B_INIT
 
         %% TIMEOUT
         P1 -.-> TIMEOUT_WIZARD{"Timeout creación 5min"}
@@ -37,20 +37,20 @@ graph TD
     subgraph 2. Lógica de asignación
         CHECK_LEVEL{{"Es Nivel 1?"}}
         
-        CHECK_LEVEL -- "Sí" --> P5["P5: Notificación Asignación - CTA Link"]
-        CHECK_LEVEL -- "No" --> P6["P6: Alerta Escalamiento - CTA Link"]
+        CHECK_LEVEL -- "Sí" --> P4["P4: Notificación Asignación - CTA Link"]
+        CHECK_LEVEL -- "No" --> P5["P5: Alerta Escalamiento - CTA Link"]
         
-        P5 --> WAIT_RESP{"Esperar tiempo configurable"}
-        P6 --> WAIT_RESP
+        P4 --> WAIT_RESP{"Esperar tiempo configurable"}
+        P5 --> WAIT_RESP
         
         WAIT_RESP -- "Click en link" --> M_DM("Bot DM a responsable")
-        M_DM --> P7{"P7: Aceptación Técnico - Quick Reply"}
+        M_DM --> P6{"P6: Aceptación Técnico - Quick Reply"}
         
-        P7 -- "Acepta" --> START_WORK("Iniciar timer")
+        P6 -- "Acepta" --> START_WORK("Iniciar timer")
 
         %% RETORNO
         WAIT_RESP -- "Tiempo agotado" --> INC_LEVEL("Nivel = Nivel + 1")
-        P7 -- "Rechaza" --> INC_LEVEL
+        P6 -- "Rechaza" --> INC_LEVEL
         INC_LEVEL --> CHECK_LEVEL
 
         M_DM ~~~ INC_LEVEL
@@ -58,41 +58,41 @@ graph TD
 
     subgraph 3. Ejecución y Clasificación IA
         START_WORK --> EXECUTION("Fase de ejecución")
-        EXECUTION --> P8["P8: Menú Acciones - Menú Lista"]
-        P8 --> DEC_TEC{"Decisión técnico"}
+        EXECUTION --> P7["P7: Menú Acciones - Menú Lista"]
+        P7 --> DEC_TEC{"Decisión técnico"}
         
-        DEC_TEC -- "Subir evidencia" --> P8
+        DEC_TEC -- "Subir evidencia" --> P7
         DEC_TEC -- "Pedir ayuda" --> INC_LEVEL
         
         %% --- SUB-FLUJO "COMBO" TÉCNICO ---
-        DEC_TEC -- "Falla solucionada" --> P9_COMBO["P9_COMBO: Evidencia Final (Foto + Audio/Texto)"]
-        P9_COMBO --> A_COMBO("Técnico envía Foto con nota de voz/texto")
+        DEC_TEC -- "Falla solucionada" --> P8_COMBO["P8_COMBO: Evidencia Final (Foto + Audio/Texto)"]
+        P8_COMBO --> A_COMBO("Técnico envía Foto con nota de voz/texto")
         
         A_COMBO --> AI_PROCESS("Backend: IA Clasifica")
-        AI_PROCESS --> P10["P10: Confirmación IA - Quick Reply"]
+        AI_PROCESS --> P9["P9: Confirmación IA - Quick Reply"]
         
-        P10 -- "Sí, correcto" --> P13
+        P9 -- "Sí, correcto" --> P11
         
         %% FALLBACK MANUAL
-        P10 -- "No, cambiar" --> P11["P11: Selección Manual Familia - Menú Lista"]
-        P11 --> MANUAL_SEL("Guarda Familia Seleccionada")
-        MANUAL_SEL --> P13
+        P9 -- "No, cambiar" --> P10["P10: Selección Manual Familia - Menú Lista"]
+        P10 --> MANUAL_SEL("Guarda Familia Seleccionada")
+        MANUAL_SEL --> P11
 
         %% TIMER
         START_WORK -.-> CHECK_WORK_TIMER{{"Timer agotado?"}}
         CHECK_WORK_TIMER -.->|"Sí"| INC_LEVEL
 
-        P8 ~~~ CHECK_WORK_TIMER
+        P7 ~~~ CHECK_WORK_TIMER
     end
 
     subgraph 4. Validación reportador
-        P13["P13: Confirmación Usuario - Quick Reply"]
-        P13 --> U_VAL{"Usuario confirma?"}
+        P11["P11: Confirmación Usuario - Quick Reply"]
+        P11 --> U_VAL{"Usuario confirma?"}
         
         U_VAL -- "Sí - Ya quedó" --> PRE_MON("Incidencia resuelta")
         U_VAL -- "No - Sigue fallando" --> REOPEN_LOGIC("Falla detectada")
         
-        P13 -.-> TIMEOUT_VAL{"Timeout 2h"}
+        P11 -.-> TIMEOUT_VAL{"Timeout 2h"}
         TIMEOUT_VAL -.->|"AUTO-ACEPTAR"| PRE_MON
 
         U_VAL ~~~ TIMEOUT_VAL
@@ -102,19 +102,19 @@ graph TD
         PRE_MON --> CHECK_LOOP{{"Contador < N?"}}
         
         CHECK_LOOP -- "Sí" --> WAIT_MON("Esperar X horas")
-        WAIT_MON --> P14["P14: Monitoreo Calidad - Quick Reply"]
+        WAIT_MON --> P12["P12: Monitoreo Calidad - Quick Reply"]
         
-        P14 --> RESP_MON{"Respuesta usuario"}
+        P12 --> RESP_MON{"Respuesta usuario"}
         RESP_MON -- "Todo bien" --> INC_LOOP("Contador + 1")
         INC_LOOP --> CHECK_LOOP
         
-        P14 -.-> TIMEOUT_MON{"Timeout 1h"}
+        P12 -.-> TIMEOUT_MON{"Timeout 1h"}
         TIMEOUT_MON -.->|"AUTO-CONTINUAR"| INC_LOOP
 
         RESP_MON -- "Falló de nuevo" --> REOPEN_LOGIC
         
         REOPEN_LOGIC --> CALC_BOSS("Jefe Inmediato")
-        CALC_BOSS --> SEND_WARN["Reusar P6: Alerta Escalamiento"]
+        CALC_BOSS --> SEND_WARN["Reusar P5: Alerta Escalamiento"]
         SEND_WARN --> RESET_L1("Reset Nivel 1")
         RESET_L1 --> CHECK_LEVEL
         
