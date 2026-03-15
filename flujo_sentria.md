@@ -5,18 +5,25 @@ graph TD
         A1("Usuario: Hola o Incidencia") --> P1["P1: Bienvenida y Tipo - Menú Lista"]
         P1 --> DEC_TIPO{"Usuario elige opción"}
         
-        DEC_TIPO -- "Manto, calidad, etc." --> SET_TYPE("Guardar tipo seleccionado")
+        DEC_TIPO -- "Manto, Calidad, Seg..." --> SET_TYPE("Guardar tipo")
+        DEC_TIPO -- "Otro" --> SET_TYPE_OTRO("Guardar tipo 'Otro'")
+        
         SET_TYPE --> P3["P3: Ubicación - Menú Lista"]
+        SET_TYPE_OTRO --> P3
+        
         P3 --> A3("Usuario elige zona")
         
-        A3 --> P4["P4: Solicitud Evidencia Inicial - Texto"]
+        %% --- NUEVO SUB-FLUJO EFICIENTE PARA "OTRO" ---
+        A3 --> CHECK_TIPO{{"¿Tipo es 'Otro'?"}}
+        
+        CHECK_TIPO -- "No" --> P4["P4: Solicitud Evidencia Inicial - Texto"]
+        CHECK_TIPO -- "Sí" --> P4_COMBO["P2/P4_COMBO: Solicitud Descripción + Foto"]
+        
         P4 --> A4_PHOTO("Usuario envía foto o texto")
+        P4_COMBO --> A4_PHOTO_DESC("Usuario envía foto con descripción")
+        
         A4_PHOTO --> B_INIT("Bot inicia variables")
-
-        %% RAMA "OTRO"
-        DEC_TIPO -- "Otro" --> P2["P2: Descripción otro - Texto"]
-        P2 --> A2_OTHER("Usuario escribe descripción")
-        A2_OTHER --> SET_TYPE
+        A4_PHOTO_DESC --> B_INIT
 
         %% TIMEOUT
         P1 -.-> TIMEOUT_WIZARD{"Timeout creación 5min"}
@@ -57,19 +64,19 @@ graph TD
         DEC_TEC -- "Subir evidencia" --> P8
         DEC_TEC -- "Pedir ayuda" --> INC_LEVEL
         
-        %% --- NUEVO SUB-FLUJO DE IA ---
-        DEC_TEC -- "Falla solucionada" --> P9["P9: Solicitud Detalle Cierre - Texto"]
-        P9 --> A_DESC("Técnico envía audio/texto")
+        %% --- SUB-FLUJO "COMBO" TÉCNICO ---
+        DEC_TEC -- "Falla solucionada" --> P9_COMBO["P9_COMBO: Evidencia Final (Foto + Audio/Texto)"]
+        P9_COMBO --> A_COMBO("Técnico envía Foto con nota de voz/texto")
         
-        A_DESC --> AI_PROCESS("Backend: IA Clasifica (Ej. Breakdown Mecánico)")
+        A_COMBO --> AI_PROCESS("Backend: IA Clasifica")
         AI_PROCESS --> P10["P10: Confirmación IA - Quick Reply"]
         
-        P10 -- "Sí, correcto" --> P12["P12: Solicitud Foto Final - Texto"]
+        P10 -- "Sí, correcto" --> P13
         
         %% FALLBACK MANUAL
         P10 -- "No, cambiar" --> P11["P11: Selección Manual Familia - Menú Lista"]
         P11 --> MANUAL_SEL("Guarda Familia Seleccionada")
-        MANUAL_SEL --> P12
+        MANUAL_SEL --> P13
 
         %% TIMER
         START_WORK -.-> CHECK_WORK_TIMER{{"Timer agotado?"}}
@@ -79,7 +86,7 @@ graph TD
     end
 
     subgraph 4. Validación reportador
-        P12 --> P13["P13: Confirmación Usuario - Quick Reply"]
+        P13["P13: Confirmación Usuario - Quick Reply"]
         P13 --> U_VAL{"Usuario confirma?"}
         
         U_VAL -- "Sí - Ya quedó" --> PRE_MON("Incidencia resuelta")
