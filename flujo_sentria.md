@@ -1,11 +1,10 @@
 ```mermaid
-flowchart LR
-    %% Nodos globales de ruteo (Actúan como carril superior para no ensuciar las cajas)
+flowchart TD
+    %% Nodos globales de ruteo (El "carril lateral" de escalamiento)
     INC_LEVEL(("Nivel = Nivel + 1"))
     SEND_ALERT{"Enviar Alerta (SLA Activo)"}
 
     subgraph Fase1 [1. Reporte inicial]
-        direction TB
         A1("Usuario: Hola o Incidencia") --> P1["P1: Menú Línea/Zona (Sin 'Otro')"]
         P1 --> DEC_LINEA("Usuario elige Línea")
         
@@ -30,7 +29,6 @@ flowchart LR
     INIT_VAR --> SEND_ALERT
 
     subgraph Fase2 [2. Lógica de Asignación en Bucle]
-        direction TB
         SEND_ALERT -- "Si Nivel = 1" --> P6["P6: Asignación Inicial - CTA Link"]
         SEND_ALERT -- "Si Nivel > 1" --> P7["P7: Alerta de Escalamiento - CTA Link"]
         
@@ -46,11 +44,10 @@ flowchart LR
         P8 -- "Acepta" --> START_WORK("Iniciar SLA de Solución")
     end
 
-    %% Conexión del tiempo agotado hacia el hub externo
+    %% Conexión del tiempo agotado hacia el carril lateral
     WAIT_RESP -. "Tiempo agotado" .-> INC_LEVEL
 
     subgraph Fase3 [3. Ejecución Directa]
-        direction TB
         START_WORK --> P9["P9: Menú Acciones Técnico - Lista"]
         P9 --> DEC_TEC{"Decisión técnico"}
         
@@ -63,12 +60,11 @@ flowchart LR
         START_WORK -.-> CHECK_SLA2{"SLA Solución Agotado?"}
     end
 
-    %% Conexiones de escape hacia el hub externo
+    %% Conexiones de escape hacia el carril lateral
     DEC_TEC -. "Pedir Ayuda" .-> INC_LEVEL
     CHECK_SLA2 -. "Sí" .-> INC_LEVEL
 
     subgraph Fase4 [4. Validación Reportador]
-        direction TB
         A_FOTO_FIN --> P11["P11: Confirmación Usuario - Quick Reply"]
         P11 --> U_VAL{"Usuario confirma?"}
         
@@ -78,11 +74,10 @@ flowchart LR
         TIMEOUT_VAL -.->|"Auto-Aceptar"| PRE_MON
     end
 
-    %% Conexión de escape
+    %% Conexión de escape hacia el carril lateral
     U_VAL -. "No - Sigue fallando" .-> INC_LEVEL
 
     subgraph Fase5 [5. Monitoreo Calidad Simplificado]
-        direction TB
         PRE_MON --> WAIT_2H("Esperar 2 horas exactas")
         WAIT_2H --> P12["P12: Monitoreo Calidad - Quick Reply"]
         
@@ -93,8 +88,8 @@ flowchart LR
         TIMEOUT_MON -.->|"Auto-Cerrar"| CLOSE
     end
 
-    %% Conexión de escape
+    %% Conexión de escape hacia el carril lateral
     RESP_MON -. "Falló de nuevo" .-> INC_LEVEL
 
-    %% Retorno del hub al flujo
+    %% Retorno del carril lateral al flujo
     INC_LEVEL --> SEND_ALERT
