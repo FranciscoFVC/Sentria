@@ -1,124 +1,100 @@
 ```mermaid
-graph TD
-    subgraph 1. Reporte inicial
-        %% FLUJO PRINCIPAL
-        A1("Usuario: Hola o Incidencia") --> P1["P1: Bienvenida y Tipo - Menú Lista"]
-        P1 --> DEC_TIPO{"Usuario elige opción"}
-        
-        DEC_TIPO -- "Manto, Calidad, Seg..." --> SET_TYPE("Guardar tipo")
-        DEC_TIPO -- "Otro" --> SET_TYPE_OTRO("Guardar tipo 'Otro'")
-        
-        SET_TYPE --> P2["P2: Ubicación - Menú Lista"]
-        SET_TYPE_OTRO --> P2
-        
-        P2 --> A2("Usuario elige zona")
-        
-        %% --- SUB-FLUJO EFICIENTE PARA "OTRO" ---
-        A2 --> CHECK_TIPO{{"¿Tipo es 'Otro'?"}}
-        
-        CHECK_TIPO -- "No" --> P3["P3: Solicitud Evidencia Inicial - Texto"]
-        CHECK_TIPO -- "Sí" --> P3_COMBO["P3_COMBO: Solicitud Descripción + Foto"]
-        
-        P3 --> A3_PHOTO("Usuario envía foto o texto")
-        P3_COMBO --> A3_PHOTO_DESC("Usuario envía foto con descripción")
-        
-        A3_PHOTO --> B_INIT("Bot inicia variables")
-        A3_PHOTO_DESC --> B_INIT
+flowchart LR
+    %% Nodos globales de ruteo (Actúan como carril superior para no ensuciar las cajas)
+    INC_LEVEL(("Nivel = Nivel + 1"))
+    SEND_ALERT{"Enviar Alerta (SLA Activo)"}
 
-        %% TIMEOUT
-        P1 -.-> TIMEOUT_WIZARD{"Timeout creación 5min"}
-        TIMEOUT_WIZARD -.->|"Usuario abandonó"| CANCEL_SESSION("Borrar sesión")
-
-        DEC_TIPO ~~~ TIMEOUT_WIZARD
+    subgraph Fase1 [1. Reporte inicial]
+        direction TB
+        A1("Usuario: Hola o Incidencia") --> P1["P1: Menú Línea/Zona (Sin 'Otro')"]
+        P1 --> DEC_LINEA("Usuario elige Línea")
+        
+        DEC_LINEA --> P2["P2: Menú Tipo de Incidencia (Con 'Otro')"]
+        P2 --> DEC_TIPO("Usuario elige Tipo")
+        
+        DEC_TIPO --> P3["P3: Menú Máquina/Aparato (Con 'Otro')"]
+        P3 --> DEC_MAQ("Usuario elige Máquina")
+        
+        DEC_MAQ --> CHECK_OTRO{"¿Tipo o Máquina es 'Otro'?"}
+        
+        CHECK_OTRO -- "Sí" --> P4["P4: Solicitud de Descripción - Texto"]
+        P4 --> A_DESC("Usuario envía descripción")
+        A_DESC --> P5["P5: Solicitud Foto Inicial - Obligatoria"]
+        
+        CHECK_OTRO -- "No" --> P5
+        P5 --> A_FOTO("Usuario envía foto del problema")
+        
+        A_FOTO --> INIT_VAR("Backend: Nivel = 1")
     end
 
-    B_INIT --> CHECK_LEVEL
+    INIT_VAR --> SEND_ALERT
 
-    subgraph 2. Lógica de asignación
-        CHECK_LEVEL{{"Es Nivel 1?"}}
+    subgraph Fase2 [2. Lógica de Asignación en Bucle]
+        direction TB
+        SEND_ALERT -- "Si Nivel = 1" --> P6["P6: Asignación Inicial - CTA Link"]
+        SEND_ALERT -- "Si Nivel > 1" --> P7["P7: Alerta de Escalamiento - CTA Link"]
         
-        CHECK_LEVEL -- "Sí" --> P4["P4: Notificación Asignación - CTA Link"]
-        CHECK_LEVEL -- "No" --> P5["P5: Alerta Escalamiento - CTA Link"]
+        P6 --> WAIT_RESP{"Esperar SLA de Respuesta"}
+        P7 --> WAIT_RESP
         
-        P4 --> WAIT_RESP{"Esperar tiempo configurable"}
-        P5 --> WAIT_RESP
+        WAIT_RESP -- "Click en link" --> M_DM("Bot DM al responsable")
+        M_DM --> P8{"P8: Aceptación Técnico - Quick Reply"}
         
-        WAIT_RESP -- "Click en link" --> M_DM("Bot DM a responsable")
-        M_DM --> P6{"P6: Aceptación Técnico - Quick Reply"}
+        P8 -- "Rechaza" --> REASSIGN("Reasignar a otro técnico (Mismo Nivel)")
+        REASSIGN --> SEND_ALERT
         
-        P6 -- "Acepta" --> START_WORK("Iniciar timer")
-
-        %% RETORNO
-        WAIT_RESP -- "Tiempo agotado" --> INC_LEVEL("Nivel = Nivel + 1")
-        P6 -- "Rechaza" --> INC_LEVEL
-        INC_LEVEL --> CHECK_LEVEL
-
-        M_DM ~~~ INC_LEVEL
+        P8 -- "Acepta" --> START_WORK("Iniciar SLA de Solución")
     end
 
-    subgraph 3. Ejecución y Clasificación IA
-        START_WORK --> EXECUTION("Fase de ejecución")
-        EXECUTION --> P7["P7: Menú Acciones - Menú Lista"]
-        P7 --> DEC_TEC{"Decisión técnico"}
-        
-        DEC_TEC -- "Subir evidencia" --> P7
-        DEC_TEC -- "Pedir ayuda" --> INC_LEVEL
-        
-        %% --- SUB-FLUJO "COMBO" TÉCNICO ---
-        DEC_TEC -- "Falla solucionada" --> P8_COMBO["P8_COMBO: Evidencia Final (Foto + Audio/Texto)"]
-        P8_COMBO --> A_COMBO("Técnico envía Foto con nota de voz/texto")
-        
-        A_COMBO --> AI_PROCESS("Backend: IA Clasifica")
-        AI_PROCESS --> P9["P9: Confirmación IA - Quick Reply"]
-        
-        P9 -- "Sí, correcto" --> P11
-        
-        %% FALLBACK MANUAL
-        P9 -- "No, cambiar" --> P10["P10: Selección Manual Familia - Menú Lista"]
-        P10 --> MANUAL_SEL("Guarda Familia Seleccionada")
-        MANUAL_SEL --> P11
+    %% Conexión del tiempo agotado hacia el hub externo
+    WAIT_RESP -. "Tiempo agotado" .-> INC_LEVEL
 
-        %% TIMER
-        START_WORK -.-> CHECK_WORK_TIMER{{"Timer agotado?"}}
-        CHECK_WORK_TIMER -.->|"Sí"| INC_LEVEL
-
-        P7 ~~~ CHECK_WORK_TIMER
+    subgraph Fase3 [3. Ejecución Directa]
+        direction TB
+        START_WORK --> P9["P9: Menú Acciones Técnico - Lista"]
+        P9 --> DEC_TEC{"Decisión técnico"}
+        
+        DEC_TEC -- "Agregar Comentario" --> A_TXT("Técnico envía nota") --> P9
+        DEC_TEC -- "Agregar Foto Extra" --> A_FOTO_EXT("Técnico envía foto") --> P9
+        
+        DEC_TEC -- "Declarar Resuelto" --> P10["P10: Solicitud Foto Final"]
+        P10 --> A_FOTO_FIN("Técnico envía foto de solución")
+        
+        START_WORK -.-> CHECK_SLA2{"SLA Solución Agotado?"}
     end
 
-    subgraph 4. Validación reportador
-        P11["P11: Confirmación Usuario - Quick Reply"]
+    %% Conexiones de escape hacia el hub externo
+    DEC_TEC -. "Pedir Ayuda" .-> INC_LEVEL
+    CHECK_SLA2 -. "Sí" .-> INC_LEVEL
+
+    subgraph Fase4 [4. Validación Reportador]
+        direction TB
+        A_FOTO_FIN --> P11["P11: Confirmación Usuario - Quick Reply"]
         P11 --> U_VAL{"Usuario confirma?"}
         
-        U_VAL -- "Sí - Ya quedó" --> PRE_MON("Incidencia resuelta")
-        U_VAL -- "No - Sigue fallando" --> REOPEN_LOGIC("Falla detectada")
+        U_VAL -- "Sí - Ya quedó" --> PRE_MON("Pausa para monitoreo")
         
         P11 -.-> TIMEOUT_VAL{"Timeout 2h"}
-        TIMEOUT_VAL -.->|"AUTO-ACEPTAR"| PRE_MON
-
-        U_VAL ~~~ TIMEOUT_VAL
+        TIMEOUT_VAL -.->|"Auto-Aceptar"| PRE_MON
     end
 
-    subgraph 5. Monitoreo Calidad
-        PRE_MON --> CHECK_LOOP{{"Contador < N?"}}
-        
-        CHECK_LOOP -- "Sí" --> WAIT_MON("Esperar X horas")
-        WAIT_MON --> P12["P12: Monitoreo Calidad - Quick Reply"]
+    %% Conexión de escape
+    U_VAL -. "No - Sigue fallando" .-> INC_LEVEL
+
+    subgraph Fase5 [5. Monitoreo Calidad Simplificado]
+        direction TB
+        PRE_MON --> WAIT_2H("Esperar 2 horas exactas")
+        WAIT_2H --> P12["P12: Monitoreo Calidad - Quick Reply"]
         
         P12 --> RESP_MON{"Respuesta usuario"}
-        RESP_MON -- "Todo bien" --> INC_LOOP("Contador + 1")
-        INC_LOOP --> CHECK_LOOP
+        RESP_MON -- "Todo bien" --> CLOSE("Cierre Exitoso")
         
         P12 -.-> TIMEOUT_MON{"Timeout 1h"}
-        TIMEOUT_MON -.->|"AUTO-CONTINUAR"| INC_LOOP
-
-        RESP_MON -- "Falló de nuevo" --> REOPEN_LOGIC
-        
-        REOPEN_LOGIC --> CALC_BOSS("Jefe Inmediato")
-        CALC_BOSS --> SEND_WARN["Reusar P5: Alerta Escalamiento"]
-        SEND_WARN --> RESET_L1("Reset Nivel 1")
-        RESET_L1 --> CHECK_LEVEL
-        
-        CHECK_LOOP -- "No" --> CLOSE("CIERRE DEFINITIVO")
-
-        RESP_MON ~~~ TIMEOUT_MON
+        TIMEOUT_MON -.->|"Auto-Cerrar"| CLOSE
     end
+
+    %% Conexión de escape
+    RESP_MON -. "Falló de nuevo" .-> INC_LEVEL
+
+    %% Retorno del hub al flujo
+    INC_LEVEL --> SEND_ALERT
