@@ -1,95 +1,119 @@
 ```mermaid
 flowchart TD
-    %% Nodos globales de ruteo (El "carril lateral" de escalamiento)
-    INC_LEVEL(("Nivel = Nivel + 1"))
-    SEND_ALERT{"Enviar Alerta (SLA Activo)"}
-
+    %% 1. Declaración de las fases y su contenido interno
+    
     subgraph Fase1 [1. Reporte inicial]
-        A1("Usuario: Hola o Incidencia") --> P1["P1: Menú Línea/Zona (Sin 'Otro')"]
-        P1 --> DEC_LINEA("Usuario elige Línea")
-        
-        DEC_LINEA --> P2["P2: Menú Tipo de Incidencia (Con 'Otro')"]
-        P2 --> DEC_TIPO("Usuario elige Tipo")
-        
-        DEC_TIPO --> P3["P3: Menú Máquina/Aparato (Con 'Otro')"]
-        P3 --> DEC_MAQ("Usuario elige Máquina")
-        
-        DEC_MAQ --> CHECK_OTRO{"¿Tipo o Máquina es 'Otro'?"}
-        
-        CHECK_OTRO -- "Sí" --> P4["P4: Solicitud de Descripción - Texto"]
-        P4 --> A_DESC("Usuario envía descripción")
-        A_DESC --> P5["P5: Solicitud Foto Inicial - Obligatoria"]
-        
-        CHECK_OTRO -- "No" --> P5
-        P5 --> A_FOTO("Usuario envía foto del problema")
-        
-        A_FOTO --> INIT_VAR("Backend: Nivel = 1")
+        A1("Usuario: hola o incidencia") --> P1["P1: Servicios o mantenimiento"]
+        P1 --> DEC_CAT("Elige categoría")
+        DEC_CAT --> P2["P2: Menú línea/zona"]
+        P2 --> DEC_LINEA("Elige línea")
+        DEC_LINEA --> P3["P3: Tipo de incidencia (con 'otro')"]
+        P3 --> DEC_TIPO("Elige tipo")
+        DEC_TIPO --> CHECK_CAT{"¿Es mantenimiento?"}
+        CHECK_CAT -- "Sí" --> P4["P4: Menú máquina/aparato (con 'otro')"]
+        P4 --> DEC_MAQ("Elige máquina")
+        CHECK_CAT -- "No (servicios)" --> CHECK_OTRO
+        DEC_MAQ --> CHECK_OTRO{"¿Tipo o máquina es 'otro'?"}
+        CHECK_OTRO -- "Sí" --> P5["P5: Solicitud descripción - texto"]
+        P5 --> A_DESC("Envía descripción")
+        A_DESC --> P6["P6: Solicitud foto inicial - obligatoria"]
+        CHECK_OTRO -- "No" --> P6
+        P6 --> A_FOTO("Envía foto del problema")
+        A_FOTO --> INIT_VAR("Backend: inicia búsqueda")
     end
 
-    INIT_VAR --> SEND_ALERT
-
-    subgraph Fase2 [2. Lógica de Asignación en Bucle]
-        SEND_ALERT -- "Si Nivel = 1" --> P6["P6: Asignación Inicial - CTA Link"]
-        SEND_ALERT -- "Si Nivel > 1" --> P7["P7: Alerta de Escalamiento - CTA Link"]
+    subgraph Fase2 [2. Lógica de asignación continua]
+        SEARCH_TECH{"Buscar técnico"}
+        CHECK_AVAIL{"¿Quedan disponibles?"}
+        ALERT_EMPTY(("Alerta a supervisor: sin técnicos"))
+        P7["P7: Asignación a técnico - cta link"]
+        WAIT_RESP{"Esperar respuesta técnico"}
         
-        P6 --> WAIT_RESP{"Esperar SLA de Respuesta"}
+        SEARCH_TECH --> CHECK_AVAIL
+        CHECK_AVAIL -- "No" --> ALERT_EMPTY
+        CHECK_AVAIL -- "Sí" --> P7
         P7 --> WAIT_RESP
-        
-        WAIT_RESP -- "Click en link" --> M_DM("Bot DM al responsable")
-        M_DM --> P8{"P8: Aceptación Técnico - Quick Reply"}
-        
-        P8 -- "Rechaza" --> REASSIGN("Reasignar a otro técnico (Mismo Nivel)")
-        REASSIGN --> SEND_ALERT
-        
-        P8 -- "Acepta" --> START_WORK("Iniciar SLA de Solución")
+        WAIT_RESP -- "Rechaza / no contesta" --> SEARCH_TECH
+        ALERT_EMPTY -. "Reinicia lista o espera" .-> SEARCH_TECH
     end
 
-    %% Conexión del tiempo agotado hacia el carril lateral
-    WAIT_RESP -. "Tiempo agotado" .-> INC_LEVEL
-
-    subgraph Fase3 [3. Ejecución Directa]
-        START_WORK --> P9["P9: Menú Acciones Técnico - Lista"]
-        P9 --> DEC_TEC{"Decisión técnico"}
+    subgraph Fase3 [3. Ejecución directa]
+        START_WORK("Iniciar sla de solución")
+        P8["P8: Menú acciones técnico - lista"]
+        DEC_TEC{"Decisión técnico"}
+        A_TXT("Envía nota")
+        A_FOTO_EXT("Envía foto")
+        ASK_HELP(("Aviso a supervisor por ayuda"))
+        P9["P9: Solicitud foto final"]
+        A_FOTO_FIN("Envía foto de solución")
         
-        DEC_TEC -- "Agregar Comentario" --> A_TXT("Técnico envía nota") --> P9
-        DEC_TEC -- "Agregar Foto Extra" --> A_FOTO_EXT("Técnico envía foto") --> P9
-        
-        DEC_TEC -- "Declarar Resuelto" --> P10["P10: Solicitud Foto Final"]
-        P10 --> A_FOTO_FIN("Técnico envía foto de solución")
-        
-        START_WORK -.-> CHECK_SLA2{"SLA Solución Agotado?"}
+        START_WORK --> P8
+        P8 --> DEC_TEC
+        DEC_TEC -- "Agregar comentario" --> A_TXT --> P8
+        DEC_TEC -- "Agregar foto extra" --> A_FOTO_EXT --> P8
+        DEC_TEC -- "Pedir ayuda" --> ASK_HELP
+        ASK_HELP --> P8
+        DEC_TEC -- "Declarar resuelto" --> P9
+        P9 --> A_FOTO_FIN
     end
 
-    %% Conexiones de escape hacia el carril lateral
-    DEC_TEC -. "Pedir Ayuda" .-> INC_LEVEL
-    CHECK_SLA2 -. "Sí" .-> INC_LEVEL
-
-    subgraph Fase4 [4. Validación Reportador]
-        A_FOTO_FIN --> P11["P11: Confirmación Usuario - Quick Reply"]
-        P11 --> U_VAL{"Usuario confirma?"}
+    subgraph Fase4 [4. Validación reportador]
+        P10["P10: Confirmación usuario - quick reply"]
+        U_VAL{"Usuario confirma?"}
+        TIMEOUT_VAL{"Timeout 15 min"}
         
-        U_VAL -- "Sí - Ya quedó" --> PRE_MON("Pausa para monitoreo")
-        
-        P11 -.-> TIMEOUT_VAL{"Timeout 2h"}
-        TIMEOUT_VAL -.->|"Auto-Aceptar"| PRE_MON
+        P10 --> U_VAL
+        P10 -.-> TIMEOUT_VAL
     end
 
-    %% Conexión de escape hacia el carril lateral
-    U_VAL -. "No - Sigue fallando" .-> INC_LEVEL
-
-    subgraph Fase5 [5. Monitoreo Calidad Simplificado]
-        PRE_MON --> WAIT_2H("Esperar 2 horas exactas")
-        WAIT_2H --> P12["P12: Monitoreo Calidad - Quick Reply"]
+    subgraph Fase5 [5. Monitoreo calidad simplificado]
+        PRE_MON("Pausa para monitoreo")
+        WAIT_2H("Esperar 2 horas exactas")
+        P11["P11: Monitoreo calidad - quick reply"]
+        RESP_MON{"Respuesta usuario"}
+        TIMEOUT_MON{"Timeout 1h"}
+        CLOSE("Cierre exitoso")
         
-        P12 --> RESP_MON{"Respuesta usuario"}
-        RESP_MON -- "Todo bien" --> CLOSE("Cierre Exitoso")
-        
-        P12 -.-> TIMEOUT_MON{"Timeout 1h"}
-        TIMEOUT_MON -.->|"Auto-Cerrar"| CLOSE
+        PRE_MON --> WAIT_2H
+        WAIT_2H --> P11
+        P11 --> RESP_MON
+        RESP_MON -- "Todo bien" --> CLOSE
+        P11 -.-> TIMEOUT_MON
+        TIMEOUT_MON -.->|"Auto-cerrar"| CLOSE
     end
 
-    %% Conexión de escape hacia el carril lateral
-    RESP_MON -. "Falló de nuevo" .-> INC_LEVEL
+    subgraph Fase6 [6. Reapertura de incidencia]
+        REWORK_SEARCH("Retrabajo: buscar tech original y aviso a supervisor")
+    end
 
-    %% Retorno del carril lateral al flujo
-    INC_LEVEL --> SEND_ALERT
+    subgraph Fase7 [7. Alertas paralelas a supervisores]
+        WAIT_1H{"Pasa 1 hora activa"}
+        NOTIFY_BOSS("Aviso a supervisor solo notificar")
+        
+        WAIT_1H --> NOTIFY_BOSS
+        NOTIFY_BOSS -- "Escalamiento +1" --> WAIT_1H
+    end
+
+    %% 2. Forzar el orden visual (Enlaces invisibles para apilar las cajas)
+    Fase1 ~~~ Fase2
+    Fase2 ~~~ Fase3
+    Fase3 ~~~ Fase4
+    Fase4 ~~~ Fase5
+    Fase5 ~~~ Fase6
+    Fase6 ~~~ Fase7
+
+    %% 3. Conexiones reales entre las fases
+    INIT_VAR --> SEARCH_TECH
+    WAIT_RESP -- "Click y acepta" --> START_WORK
+    A_FOTO_FIN --> P10
+    
+    U_VAL -- "Sí - ya quedó" --> PRE_MON
+    TIMEOUT_VAL -.->|"Auto-aceptar"| PRE_MON
+    
+    U_VAL -. "No - sigue fallando" .-> REWORK_SEARCH
+    RESP_MON -. "Falló de nuevo" .-> REWORK_SEARCH
+    
+    REWORK_SEARCH --> SEARCH_TECH
+    
+    SEARCH_TECH -. "Inicia timer alertas" .-> WAIT_1H
+    START_WORK -. "Continúa timer alertas" .-> WAIT_1H
